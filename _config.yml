@@ -1,7 +1,7 @@
 # Setup
-title: TacitVenom
-tagline: "Personal Website"
-description: "My personal website and blog."
+title: Data stories that matter!
+tagline: "If numbers could talk, they would tell stories."
+description: "I weave stories from data about topics I care about. I want to empower people to make sense of complex data and develop an informed world view. I particularly care about the biases and myths that shape the society we live in and the narratives we live with."
 url: https://tacitvenom.github.io
 baseurl: ""
 paginate: 5
@@ -11,6 +11,9 @@ permalink: pretty
 author:
   name: TacitVenom
   url: https://github.com/tacitvenom
+  email: permuted.sense@proton.com
+  linkedin: https://linkedin.com/in/vasusharma-314
+  twitter: https://twitter.com/tacitvenom
 
 # Gems
 plugins:
@@ -18,4 +21,3 @@ plugins:
 
 # Custom vars
 version: 1.1.0
-google_analytics_id: #UA-XXXX-Y
