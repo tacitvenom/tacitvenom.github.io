@@ -1,0 +1,10 @@
+[project]
+name = "tacitvenom-github-io"
+version = "0.1.0"
+description = "Python environment for generating plots for the blog"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.3.1",
+    "plotly>=6.2.0",
+]
