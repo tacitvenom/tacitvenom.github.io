@@ -7,8 +7,8 @@ to be included in Jekyll blog posts.
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from pathlib import Path
 from plotly.subplots import make_subplots
+from pathlib import Path
 
 # Define paths
 SCRIPT_PATH = Path(__file__).resolve()
@@ -19,6 +19,20 @@ PLOTS_DIR = PROJECT_ROOT / '_includes' / 'plots' / '2025-07-13'
 # Ensure plots directory exists
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# TODO: substitute ⛔ with [[1]]
+# Define unified color map for all results
+COLORS_MAP = {
+    'Passes ✅': '#ADEBB3',  # Mint green
+    'Controversial 🤔': '#FFEE8C',  # Pastel Yellow
+    'Fails ⛔': '#DCA1A1'  # Dusty Rose
+}
+
+# Define order for consistency in charts
+COLORS_ORDER = list(COLORS_MAP.keys())
+
+PLOT_HEIGHT = 600
+PLOT_WIDTH = 700
+
 def load_data():
     """Load the IMDb Bechdel test dataset."""
     csv_path = DATA_DIR / 'imdb_bechdel.csv'
@@ -27,38 +41,33 @@ def load_data():
     # Clean up the text but preserve the different categories
     df['Pass Bechdel Test?'] = df['Pass Bechdel Test?'].str.strip()
     df['Pass Reverse Bechdel Test?'] = df['Pass Reverse Bechdel Test?'].str.strip()
+    df['MovieText'] = df.apply(lambda row: f"#{row['Rank']}: {row['Movie Title'].strip()} ({row['Year of Release']})", axis=1)
 
     return df
 
 def create_pie_chart(df):
     """Create a pie chart showing Bechdel test counts with all categories and percentages."""
     # Count all the different result categories
-    bechdel_counts = df['Pass Bechdel Test?'].value_counts().reset_index()
-    bechdel_counts.columns = ['Result', 'Count']
+    bechdel_counts = df.groupby('Pass Bechdel Test?').agg(
+        {
+            'Pass Bechdel Test?': 'count',
+            'MovieText': list,
+        }
+    ).rename(columns={
+        'Pass Bechdel Test?': 'Count',
+        'MovieText': 'Movies'}
+    ).reset_index(names='Result')
 
     # Define a custom sort order to group similar results
-    result_order = {
-        '✅ Passes': 1,
-        '✅ Passes (dubiously)': 2,
-        '✅ Barely passes': 3,
-        '❌ Fails': 4
-    }
+    result_order = {category: i for i, category in enumerate(COLORS_ORDER)}
 
     # Add sort key column and sort
     bechdel_counts['sort_key'] = bechdel_counts['Result'].map(result_order)
-    bechdel_counts = bechdel_counts.sort_values('sort_key')
+    bechdel_counts = bechdel_counts.sort_values('sort_key', ascending=True)
 
     # Calculate percentages
     total = bechdel_counts['Count'].sum()
-    bechdel_counts['Percentage'] = (bechdel_counts['Count'] / total * 100).round(1)
-
-    # Create a custom color map for all categories
-    color_map = {
-        '✅ Passes': '#2ca02c',  # Strong green
-        '✅ Passes (dubiously)': '#7fba3c',  # Light green
-        '✅ Barely passes': '#b5d96c',  # Very light green
-        '❌ Fails': '#d62728'  # Red
-    }
+    bechdel_counts['Percentage'] = (bechdel_counts['Count'] / total * 100).round(0).astype(int)
 
     # Create the pie chart with all categories
     fig = px.pie(
@@ -66,145 +75,231 @@ def create_pie_chart(df):
         names='Result',
         values='Count',
         color='Result',
-        title='Bechdel Test Results for IMDb Top 25 Movies',
-        color_discrete_map=color_map,
+        title="Bechdel Test Results for IMDb Top 25 Movies",
+        color_discrete_map=COLORS_MAP,
         custom_data=['Count', 'Percentage'],
-        hover_data=None
+        hover_data=None,
+        category_orders={'Result': COLORS_ORDER},
     )
 
-    # Update hover template to show count and percentage
-    # Create fully custom text labels with count and percentage
-    custom_text = [f"{count} movies ({percentage}%)" for count, percentage in zip(bechdel_counts['Count'], bechdel_counts['Percentage'])]
+    # Create custom text templates with count and percentage
+    text_templates = [
+        f"<b>{count} movies</b><br>({percentage}%)</br>"
+        for count, percentage in zip(bechdel_counts['Count'], bechdel_counts['Percentage'])
+    ]
+
+    # Prepare custom hover templates with movie lists
+    hover_templates = []
+    for _, row in bechdel_counts.iterrows():
+        category = row['Result']
+        movie_list_html = "<br>".join(row['Movies'])
+        hover_template = f"<b>{category}</b><br>Number of Movies: {row['Count']} ({row['Percentage']}%)</br><br><b>Movies in this category:</b><br>{movie_list_html}<extra></extra>"
+        hover_templates.append(hover_template)
 
     fig.update_traces(
-        textinfo='text',
-        text=custom_text,
-        hovertemplate='<b>%{label}</b><br>Number of Movies: %{value}<extra></extra>'
+        texttemplate=text_templates,
+        textfont=dict(size=16, family='Courier New', weight='bold'),
+        hovertemplate=hover_templates,
+        marker=dict(line=dict(color='#FFFFFF', width=2)),
+        textposition='inside',
+        hoverlabel=dict(bgcolor='white', font=dict(size=12, family='Courier New')),
     )
 
     fig.update_layout(
-        font=dict(size=14),
+        font=dict(size=16, family="Courier New"),
         plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=40, r=40, t=60, b=40),
-        height=500,
+        margin=dict(l=40, r=40, t=80, b=80),  # Increased top margin for legend
+        height=PLOT_HEIGHT,
+        title=dict(
+            text='Bechdel Test Results for IMDb Top 25 Movies',
+            y=0.95,  # Move title position up to make room for legend
+            x=0.5,
+            xanchor='center',
+            font=dict(size=18, family="Courier New", weight='bold'),
+        ),
         legend=dict(
-            title_font=dict(size=16),
-            font=dict(size=14)
-        )
+            title_font=dict(size=16, family="Courier New", weight='bold'),
+            font=dict(size=16, family="Courier New", weight='bold'),
+            orientation="h",  # Horizontal legend
+            yanchor="bottom",
+            y=-0.1,  # Position below the chart
+            xanchor="center",
+            x=0.5  # Center horizontally
+        ),
+        legend_traceorder='reversed',
     )
 
     return fig
 
 def create_comparison_chart(df):
-    """Create a side-by-side comparison of Bechdel and Reverse Bechdel test results."""
-    # Create a simplified version for comparison (just Pass/Fail)
-    df_simplified = df.copy()
-    df_simplified['Bechdel_Simple'] = df_simplified['Pass Bechdel Test?'].apply(
-        lambda x: 'Pass' if '✅' in str(x) else 'Fail'
-    )
-    df_simplified['Reverse_Simple'] = df_simplified['Pass Reverse Bechdel Test?'].apply(
-        lambda x: 'Pass' if '✅' in str(x) else 'Fail'
-    )
+    """Create side-by-side pie charts comparing Bechdel and Reverse Bechdel test results."""
 
-    # Count for Bechdel test (simplified)
-    bechdel = df_simplified['Bechdel_Simple'].value_counts().reset_index()
+    # Prepare data for Bechdel test
+    bechdel = df['Pass Bechdel Test?'].value_counts().reset_index()
     bechdel.columns = ['Result', 'Count']
-    bechdel = bechdel.sort_values('Result', ascending=False)  # Sort so 'Pass' comes first
-    bechdel['Test'] = 'Bechdel Test'
+    bechdel['sort_key'] = bechdel['Result'].map({result: i for i, result in enumerate(COLORS_ORDER)})
+    bechdel = bechdel.sort_values('sort_key')
+    bechdel['percentage'] = (bechdel['Count'] / bechdel['Count'].sum() * 100).round(0).astype(int)
 
-    # Count for Reverse Bechdel test (simplified)
-    reverse = df_simplified['Reverse_Simple'].value_counts().reset_index()
+    # Prepare data for Reverse Bechdel test
+    reverse = df['Pass Reverse Bechdel Test?'].value_counts().reset_index()
     reverse.columns = ['Result', 'Count']
-    reverse = reverse.sort_values('Result', ascending=False)  # Sort so 'Pass' comes first
-    reverse['Test'] = 'Reverse Bechdel Test'
+    reverse['sort_key'] = reverse['Result'].map({result: i for i, result in enumerate(COLORS_ORDER)})
+    reverse = reverse.sort_values('sort_key')
+    reverse['percentage'] = (reverse['Count'] / reverse['Count'].sum() * 100).round(0).astype(int)
 
-    # Combine data
-    combined = pd.concat([bechdel, reverse])
-
-    # Create the grouped bar chart
-    fig = px.bar(
-        combined,
-        x='Test',
-        y='Count',
-        color='Result',
-        barmode='group',
-        title='Comparison of Bechdel and Reverse Bechdel Test Results',
-        labels={'Test': 'Test Type', 'Count': 'Number of Movies', 'Result': 'Test Result'},
-        color_discrete_map={'Pass': '#2ca02c', 'Fail': '#d62728'}
+    # Create subplot layout with 1 row, 2 columns for two pies
+    fig = make_subplots(
+        rows=1, cols=2,
+        specs=[[{'type':'domain'}, {'type':'domain'}]],
     )
 
-    # Update hover template
-    fig.update_traces(
-        hovertemplate='<b>%{x}</b><br>Result: %{color}<br>Number of Movies: %{y}<extra></extra>'
+    # Add Bechdel Test pie
+    fig.add_trace(go.Pie(
+        labels=bechdel['Result'],
+        values=bechdel['Count'],
+        marker=dict(colors=[COLORS_MAP[result] for result in bechdel['Result']]),
+        texttemplate='%{value} movies<br>(%{percent})',
+        hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percent: %{percent}<extra></extra>',
+        sort=False,
+        direction='clockwise'
+    ), row=1, col=1)
+
+    # Add Reverse Bechdel Test pie
+    fig.add_trace(go.Pie(
+        labels=reverse['Result'],
+        values=reverse['Count'],
+        marker=dict(colors=[COLORS_MAP[result] for result in reverse['Result']]),
+        texttemplate='%{value} movies<br>(%{percent})',
+        hovertemplate='<b>%{label}</b><br>Count: %{value}<br>Percent: %{percent}<extra></extra>',
+        sort=True,
+    ), row=1, col=2)
+
+    fig.add_annotation(
+        x=0.13,  # x-position roughly centered below first pie (0 to 1 spans whole figure width)
+        y=0.1,  # y-position below plot area (adjust negative to move down)
+        text="<b>Bechdel Test</b>",
+        showarrow=False,
+        xref='paper', yref='paper',
+        font=dict(size=16, family='Courier New')
     )
 
+    fig.add_annotation(
+        x=0.96,  # x-position roughly centered below second pie
+        y=0.1,
+        text='<b>"Reverse Bechdel" Test</b>',
+        showarrow=False,
+        xref='paper', yref='paper',
+        font=dict(size=16, family='Courier New')
+    )
+    # Update layout
     fig.update_layout(
-        font=dict(size=14),
-        plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=40, r=40, t=60, b=40),
-        height=500,
-        legend=dict(
-            title_font=dict(size=16),
-            font=dict(size=14)
+        title=dict(
+            text='Comparison of Bechdel and "Reverse Bechdel" Test Results',
+            y=0.85,
+            x=0.5,
+            xanchor='center',
+            font=dict(size=18, family="Courier New", weight='bold'),
         ),
-        xaxis=dict(title_font=dict(size=16)),
-        yaxis=dict(title_font=dict(size=16))
+        # title_text='Comparison of Bechdel and "Reverse Bechdel" Test Results',
+        font=dict(size=13, family="Courier New", weight='bold'),
+        height=PLOT_HEIGHT,
+        margin=dict(l=40, r=40, t=40, b=40),
+        legend_title_text=None,
+        legend=dict(
+            font=dict(size=12, family="Courier New"),
+            orientation='h',
+            yanchor='bottom',
+            y=0.0,
+            xanchor='center',
+            x=0.5
+        ),
+        legend_traceorder='reversed',
     )
 
     return fig
 
 def create_timeline_chart(df):
     """Create a chart showing Bechdel test results over time."""
-    # Create a simplified version for the timeline
-    df_timeline = df.copy()
-    df_timeline['Bechdel_Simple'] = df_timeline['Pass Bechdel Test?'].apply(
-        lambda x: 'Pass' if '✅' in str(x) else 'Fail'
-    )
 
     # Add decade column
-    df_timeline['Decade'] = (df_timeline['Year of Release'] // 10) * 10
-    df_timeline['Decade_Label'] = df_timeline['Decade'].astype(str) + 's'
+    df['Decade'] = (df['Year of Release'] // 10) * 10
+    df['Decade_Label'] = df['Decade'].astype(str) + 's'
 
-    # Ensure Decade is ordered correctly
-    df_timeline['Decade'] = pd.Categorical(df_timeline['Decade'],
-                                         categories=sorted(df_timeline['Decade'].unique()),
-                                         ordered=True)
+    # Group by decade and result category
+    decade_data = df.groupby(
+        ['Decade', 'Decade_Label', 'Pass Bechdel Test?'],
+        observed=False
+    ).agg(
+        {
+            'Pass Bechdel Test?': 'count',
+            'MovieText': list,
+        }
+    ).rename(
+        columns={'Pass Bechdel Test?': 'Count', 'MovieText': 'Movies'}
+    ).reset_index().rename(columns={'Pass Bechdel Test?': 'Result'})
+    decade_data['Movies'] = decade_data['Movies'].apply(lambda x: '<br>'.join(x))
+    decade_data['sort_key'] = decade_data['Result'].map({result: i for i, result in enumerate(COLORS_ORDER)})
 
-    # Group by decade and simplified test result
-    decade_data = df_timeline.groupby(['Decade', 'Decade_Label', 'Bechdel_Simple']).size().reset_index(name='Count')
+    # Calculate percentages within each decade
+    decade_totals = decade_data.groupby('Decade_Label')['Count'].sum().reset_index()
+    decade_data = decade_data.merge(decade_totals, on='Decade_Label', suffixes=('', '_total'))
+    decade_data['Percentage'] = (decade_data['Count'] / decade_data['Count_total'] * 100).round(0).astype(int)
+    decade_data['Percent'] = decade_data['Percentage'].astype(str) + '%'
+
+    decade_data = decade_data.sort_values(['Decade', 'sort_key'])
 
     # Create the chart
     fig = px.bar(
         decade_data,
         x='Decade_Label',
         y='Count',
-        color='Bechdel_Simple',
-        title='Bechdel Test Results by Decade',
-        labels={'Decade_Label': 'Decade', 'Count': 'Number of Movies', 'Bechdel_Simple': 'Test Result'},
-        color_discrete_map={'Pass': '#2ca02c', 'Fail': '#d62728'},
-        category_orders={'Decade_Label': sorted(decade_data['Decade_Label'].unique())}
+        color='Result',
+        title='Bechdel Test Results for IMDb Top 25 Movies by Decade',
+        labels={'Decade_Label': 'Decade', 'Count': 'Number of Movies', 'Result': 'Test Result'},
+        color_discrete_map=COLORS_MAP,
+        category_orders={
+            'Decade_Label': sorted(decade_data['Decade_Label'].unique()),
+            'Result': COLORS_ORDER
+        },
+        text='Percent', # Show percentage labels
+        custom_data=['Result', 'Count', 'Percentage', 'Movies'] # For hover info
     )
-
-    # Update hover template
     fig.update_traces(
-        hovertemplate='<b>%{x}</b><br>Result: %{color}<br>Number of Movies: %{y}<extra></extra>'
+        hovertemplate="""
+        <b>%{customdata[0]} from %{x}</b>
+        <br>%{customdata[1]} movie(s)
+        <br>%{customdata[2]}%
+        <br>
+        <b>Movies in this category:</b>
+        <br>%{customdata[3]}
+        <extra></extra>
+        """,
+        hoverlabel=dict(align='left', font=dict(size=14, family="Courier New")),
+        textposition='inside',
+        insidetextanchor='middle',
     )
-
     fig.update_layout(
-        font=dict(size=14),
+        font=dict(size=14, family="Courier New"),
         plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=40, r=40, t=60, b=40),
-        height=500,
+        margin=dict(l=80, r=40, t=40, b=120),
+        height=PLOT_HEIGHT,
+        title=dict(font=dict(size=18, family="Courier New", weight='bold')),
+        legend_title=None,
         legend=dict(
-            title_font=dict(size=16),
-            font=dict(size=14)
+            font=dict(size=16, family="Courier New", weight='bold'),
+            orientation="h", # Horizontal legend
+            yanchor="bottom",
+            y=-0.2, # Position below the chart
+            xanchor="center",
+            x=0.5 # Center horizontally
         ),
         xaxis=dict(
-            title_font=dict(size=16),
+            title_font=dict(size=16, family="Courier New", weight='bold'),
             categoryorder='array',
             categoryarray=sorted(decade_data['Decade_Label'].unique())
         ),
-        yaxis=dict(title_font=dict(size=16))
+        yaxis=dict(title_font=dict(size=16, family="Courier New", weight='bold')),
     )
 
     return fig
@@ -224,8 +319,8 @@ def save_plot(fig, filename):
             'toImageButtonOptions': {
                 'format': 'png',
                 'filename': 'bechdel_analysis',
-                'height': 500,
-                'width': 700,
+                'height': PLOT_HEIGHT,
+                'width': PLOT_WIDTH,
                 'scale': 2
             }
         }
@@ -240,7 +335,7 @@ def main():
     print("Generating plots...")
     # Pie chart with percentages
     pie_chart = create_pie_chart(df)
-    save_plot(pie_chart, "bechdel_bar_chart")
+    save_plot(pie_chart, "bechdel_pie_chart")
 
     # Comparison chart
     comparison_chart = create_comparison_chart(df)
