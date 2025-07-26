@@ -13,7 +13,7 @@ from pathlib import Path
 # Define paths
 SCRIPT_PATH = Path(__file__).resolve()
 PROJECT_ROOT = SCRIPT_PATH.parent.parent.parent
-DATA_DIR = PROJECT_ROOT / 'data'
+DATA_DIR = PROJECT_ROOT / 'data' / '2025-07-13'
 PLOTS_DIR = PROJECT_ROOT / '_includes' / 'plots' / '2025-07-13'
 
 # Ensure plots directory exists
