@@ -27,6 +27,47 @@ Lanyon is a theme built on top of [Poole](https://github.com/poole/poole), which
 
 Lanyon includes some customizable options, typically applied via classes on the `<body>` element.
 
+### Serve the website locally
+
+To view your Jekyll site locally before publishing, follow these steps:
+
+#### Prerequisites
+
+1. Install Ruby (version 2.7.0 or higher)
+   - On macOS: `brew install ruby`
+   - On Windows: Download from [rubyinstaller.org](https://rubyinstaller.org/)
+   - On Linux: `sudo apt-get install ruby-full`
+
+2. Install Bundler (Ruby dependency manager):
+```bash
+gem install bundler
+```
+
+
+#### Setup Instructions
+
+1. Navigate to your project directory in the terminal:
+
+```bash
+cd /path/to/your/project
+```
+
+2. Install all required dependencies:
+```bash
+bundle install
+```
+
+#### Running the local server
+
+1. Start the Jekyll server:
+```bash
+bundle exec jekyll serve
+```
+
+2. Open your browser and navigate to:
+
+`http://127.0.0.1:4000` or `http://localhost:4000`
+
 
 ### Sidebar menu
 
